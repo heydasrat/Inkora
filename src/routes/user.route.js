@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { register, login, logout } from "../controllers/user.controller.js";
+import { register, login, logout,getCurrentUser } from "../controllers/user.controller.js";
 import upload from "../middlewares/multer.middleware.js";
 import verifyJWT from "../middlewares/auth.middleware.js";
 
@@ -16,5 +16,6 @@ router.route("/register").post(upload.fields([
 
 router.route("/login").post(login)
 router.route("/logout").post(verifyJWT, logout)
+router.route("/me").get(verifyJWT,getCurrentUser)
 
 export default router
