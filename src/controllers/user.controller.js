@@ -4,6 +4,26 @@ import ApiResponse from '../utils/ApiResponse.js'
 import User from '../models/user.model.js'
 import uploadOnCloudinary from '../utils/uploadOnCloudinary.js'
 
+const options = {
+    secure: true,
+    httpOnly: true
+}
+
+const generateAccessAndRefreshToken = async (userId) => {
+    try {
+        const user = await User.findById(userId);
+        const accessToken = user.generateAccessToken()
+        const refreshToken = user.generateRefreshToken()
+
+        user.refreshToken = refreshToken
+        await user.save({ validateBeforeSave: false })
+
+        return { accessToken, refreshToken }
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating your tokens")
+    }
+}
+
 const register = asyncHandler(async (req, res) => {
     const { fullName, email, password, username } = req.body;
 
@@ -77,6 +97,50 @@ const register = asyncHandler(async (req, res) => {
 
 })
 
+const login = asyncHandler(async (req, res) => {
+    const { identifier, password } = req.body
+
+    if (!identifier || identifier.trim() === "") {
+        throw new ApiError(400, "Username or email is required")
+    }
+
+    if (!password || password.trim() === "") {
+        throw new ApiError(400, "Password is required")
+    }
+
+    const user = await User.findOne({
+        $or: [{ email: identifier }, { username: identifier }]
+    })
+
+    if (!user) {
+        throw new ApiError(404, "User not found!")
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+    if (!isPasswordValid) {
+        throw new ApiError(400, "Invalid credentials")
+    }
+
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id)
+
+    const loggedInUser = await User.findById(user._id).select("-refreshToken -password")
+
+   return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
+        new ApiResponse(
+            200,
+            loggedInUser,
+            "User logged in successfully"
+        )
+    );
+
+})
+
 export {
-    register
-}
+    register,
+    login
+} 
